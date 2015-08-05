@@ -1,24 +1,123 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+#
+# Copyright 2015 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+'''
+To use:
+1) Install the Google Python client library, as shown at https://developers.google.com/webmaster-tools/v3/libraries.
+2) Sign up for a new project in the Google APIs console at https://code.google.com/apis/console.
+3) Register the project to use OAuth2.0 for installed applications.
+4) Copy your client ID, client secret, and redirect URL into the client_secrets.json file included in this package.
+5) Run the app in the command-line as shown below.
+
+Sample usage:
+
+  $ python search-analytics-api-sample.py 'https://www.example.com/' '2015-05-01' '2015-05-30'
+'''
+
+import argparse
+import sys
+from googleapiclient import sample_tools
 import shutil
-import gwmt.downloader
 import glob
 import os
 import re
-import csv
 import time
 import collections
 import MySQLdb
 import warnings
+import csv
 
+# Declare command-line flags.
+argparser = argparse.ArgumentParser(add_help=False)
+argparser.add_argument('property_uri', type=str,
+						help=('Site or app URI to query data for (inclufing '
+						'trailing slash).'))
+argparser.add_argument('start_date', type=str,
+						help=('Start date of the requested date range in '
+						'YYYY-MM-DD format.'))
+argparser.add_argument('end_date', type=str,
+						help=('End date of the requested date range in '
+						'YYYY-MM-DD format.'))
+
+def main(argv):
+	service, flags = sample_tools.init(
+		argv, 'webmasters', 'v3', __doc__, __file__, parents=[argparser],
+		scope='https://www.googleapis.com/auth/webmasters.readonly')
+
+	# Get the queries for the date range, sorted by click count, descending.
+	request = {
+		'startDate': flags.start_date,
+		'endDate': flags.end_date,
+		'dimensions': ['query'],
+	}
+	response = execute_request(service, flags.property_uri, request)
+	print_table(response, 'Export to CSV complete')
+
+def execute_request(service, property_uri, request):
+	'''Executes a searchAnalytics.query request.
+
+	Args:
+		service: The webmasters service to use when executing the query.
+		property_uri: The site or app URI to request data for.
+		request: The request to be executed.
+
+	Returns:
+		An array of response rows.
+	'''
+	return service.searchanalytics().query(
+		siteUrl=property_uri, body=request).execute()
+
+def print_table(response, title):
+	'''Prints out a response table.
+
+	Each row contains key(s), clicks, impressions, CTR, and average position.
+
+	Args:
+		response: The server response to be printed as a table.
+		title: The title of the table.
+	'''
+	#print title + ':'
+
+	if 'rows' not in response:
+		print 'Empty response'
+		return
+
+	rows = response['rows']
+	row_format = '{:<20}' + '{:>20}' * 4
+	# print row_format.format('Keys', 'Clicks', 'Impressions', 'CTR', 'Position')
+	f = open("./TOP_QUERIES.csv", 'wt')
+	writer = csv.writer(f)
+	writer.writerow( ('query', 'impressions', 'clicks', 'avg_position') )
+	for row in rows:
+		keys = ''
+		# Keys are returned only if one or more dimensions are requested.
+		if 'keys' in row:
+			keys = u','.join(row['keys']).encode('utf-8')
+		#print row_format.format(
+		#	keys, row['clicks'], row['impressions'], row['ctr'], row['position'])
+		writer.writerow( (keys, row['impressions'], row['clicks'], row['position']) )
+	f.close()
+
+# Fill out with your MySQL database information
 
 dbUser = '' // MySQL Username
 dbPassword = '' // MySQL Password
 dbHost = 'localhost' // MySQL Host
 dbPort = 3306 // MySQL Host Port
 dbSchema = '' // MySQL Database Name
-
-email = '' // Google Webmaster Tools Username
-emailPassword = '' // Google Webmaster Tools Password
-siteUrl = '' // Google Webmaster Tools Domain (format: http://domain.com)
 
 #based on https://bitbucket.org/richardpenman/csv2mysql
 # suppress annoying mysql warnings
@@ -164,12 +263,6 @@ def putCsvToDb(input_file, user, password, host, port, table, database):
     db.commit()
     print 'Done!'
 
-def downloadCsvs(email,password,siteUrl):
-    downloader = gwmt.downloader.Downloader()
-    downloader.LogIn(email,password)
-    downloader.DoDownload(siteUrl,['TOP_PAGES', 'TOP_QUERIES'])
-
-
 def convertLongFileNames():
     os.chdir(".")
     files =glob.glob("*.csv")
@@ -212,17 +305,13 @@ def addDateColumn(filename):
     shutil.copyfile("temp", filename)
     os.remove("temp")
 
-downloadCsvs(email, emailPassword, siteUrl)
+if __name__ == '__main__':
+	main(sys.argv)
+	
 convertLongFileNames()
 
-removeChangeAndCtrColumns('TOP_QUERIES.csv')
 addDateColumn('TOP_QUERIES.csv')
 
-removeChangeAndCtrColumns('TOP_PAGES.csv')
-addDateColumn('TOP_PAGES.csv')
-
-putCsvToDb('TOP_PAGES.csv',dbUser,dbPassword,dbHost,dbPort,'TOP_PAGES',dbSchema)
 putCsvToDb('TOP_QUERIES.csv',dbUser,dbPassword,dbHost,dbPort,'TOP_QUERIES',dbSchema)
 
-os.remove('TOP_PAGES.csv')
 os.remove('TOP_QUERIES.csv')

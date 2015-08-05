@@ -1,5 +1,5 @@
 # gwmt2mysql
 
-For details see: http://searchwilderness.com/gwmt-data-python/
+- 8/5/2015: Updated script to work with the new Search Analytics API
 
-Upon the public release of the new Search Analytics API, a new version of this script will be released.
+For details see: http://searchwilderness.com/gwmt-data-python/
