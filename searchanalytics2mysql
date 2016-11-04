@@ -15,16 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 '''
-To use:
-1) Install the Google Python client library, as shown at https://developers.google.com/webmaster-tools/v3/libraries.
-2) Sign up for a new project in the Google APIs console at https://code.google.com/apis/console.
-3) Register the project to use OAuth2.0 for installed applications.
-4) Copy your client ID, client secret, and redirect URL into the client_secrets.json file included in this package.
-5) Run the app in the command-line as shown below.
+For setup instructions, see https://github.com/pshapiro/gwmt2mysql
 
 Sample usage:
 
-  $ python search-analytics-api-sample.py 'https://www.example.com/' '2015-05-01' '2015-05-30'
+  $ ./searchanalytics2mysql 'https://www.example.com/' '2015-05-01' '2015-05-30'
 '''
 
 import argparse
@@ -43,85 +38,95 @@ import csv
 # Declare command-line flags.
 argparser = argparse.ArgumentParser(add_help=False)
 argparser.add_argument('property_uri', type=str,
-						help=('Site or app URI to query data for (inclufing '
-						'trailing slash).'))
+                        help=('Site or app URI to query data for (including '
+                        'trailing slash).'))
 argparser.add_argument('start_date', type=str,
-						help=('Start date of the requested date range in '
-						'YYYY-MM-DD format.'))
+                        help=('Start date of the requested date range in '
+                        'YYYY-MM-DD format.'))
 argparser.add_argument('end_date', type=str,
-						help=('End date of the requested date range in '
-						'YYYY-MM-DD format.'))
+                        help=('End date of the requested date range in '
+                        'YYYY-MM-DD format.'))
+
+
+# Database Configuration
+dbUser = ''  # MySQL Username
+dbPassword = ''  # MySQL Password
+dbHost = 'localhost'  # MySQL Host (default: localhost)
+dbPort = 3306  # MySQL Host Port (default: 3306)
+dbSchema = ''  # MySQL Database Name
+
 
 def main(argv):
-	service, flags = sample_tools.init(
-		argv, 'webmasters', 'v3', __doc__, __file__, parents=[argparser],
-		scope='https://www.googleapis.com/auth/webmasters.readonly')
 
-	# Get the queries for the date range, sorted by click count, descending.
-	request = {
-		'startDate': flags.start_date,
-		'endDate': flags.end_date,
-		'dimensions': ['query'],
-	}
-	response = execute_request(service, flags.property_uri, request)
-	print_table(response, 'Export to CSV complete')
+    if dbUser or dbSchema == '':
+        print 'Please add your database credentials to the script.'
+        sys.exit(0)
 
-def execute_request(service, property_uri, request):
-	'''Executes a searchAnalytics.query request.
+    service, flags = sample_tools.init(
+        argv, 'webmasters', 'v3', __doc__, __file__, parents=[argparser],
+        scope='https://www.googleapis.com/auth/webmasters.readonly')
 
-	Args:
-		service: The webmasters service to use when executing the query.
-		property_uri: The site or app URI to request data for.
-		request: The request to be executed.
+    # Get the queries for the date range, sorted by click count, descending.
+    params = {
+        'startDate': flags.start_date,
+        'endDate': flags.end_date,
+        'dimensions': ['query'],
+    }
+    response = execute_request(service, flags.property_uri, params)
+    print_table(response, 'Export to CSV complete')
 
-	Returns:
-		An array of response rows.
-	'''
-	return service.searchanalytics().query(
-		siteUrl=property_uri, body=request).execute()
+
+def execute_request(service, property_uri, params):
+    '''Executes a searchAnalytics.query request.
+
+    Args:
+        service: The webmasters service to use when executing the query.
+        property_uri: The site or app URI to request data for.
+        params: The parameter filters to be use.
+
+    Returns:
+        An array of response rows.
+    '''
+    return service.searchanalytics().query(
+        siteUrl=property_uri, body=request).execute()
+
 
 def print_table(response, title):
-	'''Prints out a response table.
+    '''Prints out a response table.
 
-	Each row contains key(s), clicks, impressions, CTR, and average position.
+    Each row contains key(s), clicks, impressions, CTR, and average position.
 
-	Args:
-		response: The server response to be printed as a table.
-		title: The title of the table.
-	'''
-	#print title + ':'
+    Args:
+        response: The server response to be printed as a table.
+        title: The title of the table.
+    '''
+    # print title + ':'
 
-	if 'rows' not in response:
-		print 'Empty response'
-		return
+    if 'rows' not in response:
+        print 'Empty response'
+        return
 
-	rows = response['rows']
-	row_format = '{:<20}' + '{:>20}' * 4
-	# print row_format.format('Keys', 'Clicks', 'Impressions', 'CTR', 'Position')
-	f = open("./TOP_QUERIES.csv", 'wt')
-	writer = csv.writer(f)
-	writer.writerow( ('query', 'impressions', 'clicks', 'avg_position') )
-	for row in rows:
-		keys = ''
-		# Keys are returned only if one or more dimensions are requested.
-		if 'keys' in row:
-			keys = u','.join(row['keys']).encode('utf-8')
-		#print row_format.format(
-		#	keys, row['clicks'], row['impressions'], row['ctr'], row['position'])
-		writer.writerow( (keys, row['impressions'], row['clicks'], row['position']) )
-	f.close()
+    rows = response['rows']
+    row_format = '{:<20}' + '{:>20}' * 4
+    # print row_format.format('Keys', 'Clicks', 'Impressions', 'CTR', 'Position')
+    f = open('./TOP_QUERIES.csv', 'wt')
+    writer = csv.writer(f)
+    writer.writerow(('query', 'impressions', 'clicks', 'avg_position'))
+    for row in rows:
+        keys = ''
+        # Keys are returned only if one or more dimensions are requested.
+        if 'keys' in row:
+            keys = u','.join(row['keys']).encode('utf-8')
+        # print row_format.format(
+        #   keys, row['clicks'], row['impressions'], row['ctr'], row['position'])
+        writer.writerow((keys, row['impressions'], row['clicks'], row['position']))
+    f.close()
 
-# Fill out with your MySQL database information
 
-dbUser = '' // MySQL Username
-dbPassword = '' // MySQL Password
-dbHost = 'localhost' // MySQL Host
-dbPort = 3306 // MySQL Host Port
-dbSchema = '' // MySQL Database Name
-
-#based on https://bitbucket.org/richardpenman/csv2mysql
+# based on https://bitbucket.org/richardpenman/csv2mysql
 # suppress annoying mysql warnings
 warnings.filterwarnings(action='ignore', category=MySQLdb.Warning)
+
 
 def get_type(s):
     """Find type for this string
@@ -226,7 +231,7 @@ def safe_col(s):
 
 def putCsvToDb(input_file, user, password, host, port, table, database):
     print "Importing `%s' into MySQL database `%s.%s'" % (input_file, database, table)
-    db = MySQLdb.connect(host=host, user=user, passwd=password, port = port)
+    db = MySQLdb.connect(host=host, user=user, passwd=password, port=port)
     cursor = db.cursor()
     # create database and if doesn't exist
     cursor.execute('CREATE DATABASE IF NOT EXISTS %s;' % database)
@@ -246,13 +251,13 @@ def putCsvToDb(input_file, user, password, host, port, table, database):
             schema_sql = get_schema(table, header, col_types)
             print schema_sql
             # create table
-            #cursor.execute('DROP TABLE IF EXISTS %s;' % table)
+            # cursor.execute('DROP TABLE IF EXISTS %s;' % table)
             cursor.execute(schema_sql)
             # create index for more efficient access
             try:
                 cursor.execute('CREATE INDEX ids ON %s (id);' % table)
             except MySQLdb.OperationalError:
-                pass # index already exists
+                pass  # index already exists
 
             print 'Inserting rows ...'
             # SQL string for inserting data
@@ -263,9 +268,10 @@ def putCsvToDb(input_file, user, password, host, port, table, database):
     db.commit()
     print 'Done!'
 
+
 def convertLongFileNames():
-    os.chdir(".")
-    files =glob.glob("*.csv")
+    os.chdir('.')
+    files = glob.glob('*.csv')
     for file in files:
         if 'TopSearchUrls' in file:
             shutil.copyfile(file, 'TOP_PAGES.csv')
@@ -277,17 +283,18 @@ def convertLongFileNames():
 
 
 def removeChangeAndCtrColumns(filename):
-    with open(filename,"rb") as source:
-        rdr= csv.reader( source )
-        with open("temp","wb") as result:
-            wtr = csv.writer( result )
+    with open(filename, 'rb') as source:
+        rdr = csv.reader(source)
+        with open('temp', 'wb') as result:
+            wtr = csv.writer(result)
             for r in rdr:
-                wtr.writerow( (r[0], r[1], r[3], r[7]) )
-    shutil.copyfile("temp", filename)
-    os.remove("temp")
+                wtr.writerow((r[0], r[1], r[3], r[7]))
+    shutil.copyfile('temp', filename)
+    os.remove('temp')
+
 
 def addDateColumn(filename):
-    with open(filename,'r') as source:
+    with open(filename, 'r') as source:
         with open('temp', 'w') as result:
             writer = csv.writer(result, lineterminator='\n')
             reader = csv.reader(source)
@@ -302,16 +309,17 @@ def addDateColumn(filename):
                 all.append(row)
 
             writer.writerows(all)
-    shutil.copyfile("temp", filename)
-    os.remove("temp")
+    shutil.copyfile('temp', filename)
+    os.remove('temp')
+
 
 if __name__ == '__main__':
-	main(sys.argv)
-	
+    main(sys.argv)
+
 convertLongFileNames()
 
 addDateColumn('TOP_QUERIES.csv')
 
-putCsvToDb('TOP_QUERIES.csv',dbUser,dbPassword,dbHost,dbPort,'TOP_QUERIES',dbSchema)
+putCsvToDb('TOP_QUERIES.csv', dbUser, dbPassword, dbHost, dbPort, 'TOP_QUERIES', dbSchema)
 
 os.remove('TOP_QUERIES.csv')
