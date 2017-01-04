@@ -1,7 +1,7 @@
 Google Search Queries API to MySQL Database
 ===========================================
 
-This script allows you to download Google Search Query data to a MySQL database as shown in the Search [Wilderness Blog by Paul Shapiro][1]
+This script allows you to download Google Search Query data to a MySQL database as shown in the [Search Wilderness Blog by Paul Shapiro][1]
 
 # Prerequisites
 * You already have a [Google Search Console][2] account setup with your profiles verified.
